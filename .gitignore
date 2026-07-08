@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Pothole Mapper - Project Specific
+models/
+data/
+.DS_Store
+*.log
