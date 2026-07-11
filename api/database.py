@@ -1,13 +1,12 @@
 from sqlalchemy import create_engine, Column, Integer, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-import os
-from dotenv import load_dotenv
+from api.config import get_settings
+from datetime import datetime, timezone
 
-load_dotenv()
+settings = get_settings()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./potholes.db")
+DATABASE_URL = settings.database_url
 
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -28,7 +27,7 @@ class Pothole(Base):
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     confidence = Column(Float, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 def init_db():
