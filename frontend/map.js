@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000";
+const API_URL = "http://localhost:8000/api";
 
 const map = L.map("map").setView([35.2271, -80.8431], 12);
 

@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from api.database import get_db, Pothole
 from api.schemas import PotholeCreate, PotholeResponse
+from api.config import get_settings
+from api.logger import get_logger
 from datetime import datetime
 
 router = APIRouter()
+settings = get_settings()
+logger = get_logger(__name__)
 
 
 @router.post("/potholes", response_model=PotholeResponse)
@@ -18,16 +22,20 @@ def log_pothole(pothole: PotholeCreate, db: Session = Depends(get_db)):
     db.add(db_pothole)
     db.commit()
     db.refresh(db_pothole)
+    logger.info(f"Logged pothole at ({pothole.latitude}, {pothole.longitude}) confidence={pothole.confidence}")
     return db_pothole
 
 
 @router.get("/potholes", response_model=list[PotholeResponse])
 def get_potholes(db: Session = Depends(get_db)):
-    return db.query(Pothole).all()
+    potholes = db.query(Pothole).all()
+    logger.info(f"Returning {len(potholes)} potholes")
+    return potholes
 
 
 @router.delete("/potholes")
 def clear_potholes(db: Session = Depends(get_db)):
     db.query(Pothole).delete()
     db.commit()
+    logger.info("Cleared all potholes")
     return {"message": "All potholes cleared"}
