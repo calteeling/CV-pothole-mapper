@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create models directory
+        run: mkdir -p models
+
+      - name: Download model weights
+        run: |
+          python -c "
+          from huggingface_hub import hf_hub_download
+          hf_hub_download(
+              repo_id='keremberke/yolov8n-pothole-segmentation',
+              filename='best.pt',
+              local_dir='models/'
+          )
+          "
+
+      - name: Run detector test
+        run: python -m tests.test_detector
+
+      - name: Run video processor test
+        run: python -m tests.test_video_processor

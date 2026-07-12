@@ -1,5 +1,7 @@
 # Computer Vision Pothole Mapper
 
+![CI](https://github.com/calteeling/CV-pothole-mapper/actions/workflows/ci.yml/badge.svg)
+
 A real-time computer vision system that detects road potholes from a live camera feed, geotags each detection using a GPS module, and plots them on an interactive public map updated in real time.
 
 **[View Live Map](https://cv-pothole-mapper.onrender.com)**
