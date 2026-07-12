@@ -1,8 +1,12 @@
-from detection.detector import PotholeDetector
+import os
 import urllib.request
 import cv2
+from detection.detector import PotholeDetector
 
-# Download a sample pothole image to test with
+# Ensure data directory exists
+os.makedirs("data", exist_ok=True)
+
+# Download a sample image to test with
 url = "https://ultralytics.com/images/bus.jpg"
 urllib.request.urlretrieve(url, "data/test_image.jpg")
 
