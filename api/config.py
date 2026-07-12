@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Model
     model_path: str = "models/best.pt"
-    confidence_threshold: float = 0.25
+    confidence_threshold: float = 0.40
 
     # GPS
     gps_port: str = "/dev/ttyACM0"
