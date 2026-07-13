@@ -68,7 +68,7 @@
                 <option value="all">All Confidence</option>
                 <option value="high">High (70%+)</option>
                 <option value="medium">Medium (50-70%)</option>
-                <option value="low">Low (below 50%)</option>
+                <option value="low">Below 50%</option>
             </select>
             <select id="time-filter">
                 <option value="all">All Time</option>
@@ -76,7 +76,9 @@
                 <option value="week">Last 7 Days</option>
                 <option value="month">Last 30 Days</option>
             </select>
-            <button onclick="resetFilters()">Reset</button>
+            <button id="apply-filters">Apply</button>
+            <button id="reset-filters">Reset</button>
+            <button id="refresh">Refresh</button>
         </div>
         <span id="stats">Loading...</span>
     </div>
