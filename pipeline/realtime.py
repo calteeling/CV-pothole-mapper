@@ -3,6 +3,7 @@ import time
 import requests
 import numpy as np
 from picamera2 import Picamera2
+from picamera2.encoders import H264Encoder
 from datetime import datetime, timezone
 from detection.detector import PotholeDetector
 from detection.gps_parser import GPSParser
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class RealtimePipeline:
-    def __init__(self, api_url: str = None):
+    def __init__(self, api_url: str = None, save_video: bool = True):
         self.detector = PotholeDetector(
             model_path=settings.model_path,
             confidence_threshold=settings.confidence_threshold
@@ -25,6 +26,7 @@ class RealtimePipeline:
         )
         self.api_url = api_url or "https://cv-pothole-mapper.onrender.com/api"
         self.frame_skip = settings.frame_skip
+        self.save_video = save_video
         self._running = False
         logger.info("Realtime pipeline initialized")
 
@@ -48,6 +50,23 @@ class RealtimePipeline:
             logger.error("Could not connect to API — check hotspot connection")
         except requests.exceptions.Timeout:
             logger.error("API request timed out")
+
+    def draw_detections(self, frame: np.ndarray, detections: list) -> np.ndarray:
+        for detection in detections:
+            bbox = detection["bbox"]
+            confidence = detection["confidence"]
+            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+            label = f"Pothole {confidence:.0%}"
+            cv2.putText(
+                frame, label,
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6, (0, 0, 255), 2
+            )
+        return frame
 
     def run(self):
         logger.info("Starting realtime pipeline — press Ctrl+C to stop")
@@ -76,6 +95,15 @@ class RealtimePipeline:
         picam2.start()
         time.sleep(2)
 
+        # Set up video writer
+        video_writer = None
+        if self.save_video:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            video_path = f"/home/pi/drive_{timestamp}.mp4"
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter(video_path, fourcc, 10, (1280, 720))
+            logger.info(f"Recording video to {video_path}")
+
         logger.info("Camera started — detecting potholes...")
         self._running = True
         frame_count = 0
@@ -85,6 +113,7 @@ class RealtimePipeline:
             while self._running:
                 frame = picam2.capture_array()
 
+                detections = []
                 if frame_count % self.frame_skip == 0:
                     detections = self.detector.detect(frame)
 
@@ -97,6 +126,12 @@ class RealtimePipeline:
                         else:
                             logger.warning("Pothole detected but no GPS fix yet")
 
+                # Draw boxes on frame and save to video
+                if video_writer:
+                    annotated = self.draw_detections(frame.copy(), detections)
+                    annotated_bgr = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
+                    video_writer.write(annotated_bgr)
+
                 frame_count += 1
 
         except KeyboardInterrupt:
@@ -104,6 +139,9 @@ class RealtimePipeline:
         finally:
             picam2.stop()
             self.gps.stop()
+            if video_writer:
+                video_writer.release()
+                logger.info(f"Video saved to {video_path}")
             logger.info(f"Pipeline complete — {total_detections} potholes detected")
 
 
@@ -111,7 +149,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run realtime pothole detection pipeline")
     parser.add_argument("--api", default="https://cv-pothole-mapper.onrender.com/api", help="API URL")
+    parser.add_argument("--no-video", action="store_true", help="Disable video recording")
     args = parser.parse_args()
 
-    pipeline = RealtimePipeline(api_url=args.api)
+    pipeline = RealtimePipeline(api_url=args.api, save_video=not args.no_video)
     pipeline.run()
