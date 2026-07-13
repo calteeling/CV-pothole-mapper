@@ -12,17 +12,49 @@
         #header {
             background: #1a1a2e;
             color: white;
-            padding: 15px 20px;
+            padding: 12px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
-        #header h1 { font-size: 1.4rem; }
+        #header h1 { font-size: 1.3rem; }
+
+        #controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        #controls select, #controls button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        #controls select {
+            background: #2a2a4e;
+            color: white;
+            border: 1px solid #4a4a7e;
+        }
+
+        #controls button {
+            background: #e74c3c;
+            color: white;
+            font-weight: bold;
+        }
+
+        #controls button:hover { background: #c0392b; }
 
         #stats {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #aaa;
+            white-space: nowrap;
         }
 
         #map { height: calc(100vh - 55px); width: 100%; }
@@ -30,7 +62,22 @@
 </head>
 <body>
     <div id="header">
-        <h1>Pothole Mapper</h1>
+        <h1>CV Pothole Mapper</h1>
+        <div id="controls">
+            <select id="confidence-filter">
+                <option value="all">All Confidence</option>
+                <option value="high">High (70%+)</option>
+                <option value="medium">Medium (50-70%)</option>
+                <option value="low">Low (below 50%)</option>
+            </select>
+            <select id="time-filter">
+                <option value="all">All Time</option>
+                <option value="day">Last 24 Hours</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+            </select>
+            <button onclick="resetFilters()">Reset</button>
+        </div>
         <span id="stats">Loading...</span>
     </div>
     <div id="map"></div>
