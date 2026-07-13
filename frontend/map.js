@@ -21,12 +21,10 @@ function applyFilters() {
     const now = new Date();
 
     const filtered = allPotholes.filter(p => {
-        // Confidence filter
         if (confidenceFilter === "high" && p.confidence < 0.7) return false;
         if (confidenceFilter === "medium" && (p.confidence < 0.5 || p.confidence >= 0.7)) return false;
         if (confidenceFilter === "low" && p.confidence >= 0.5) return false;
 
-        // Time filter
         let ts = p.timestamp;
         if (!ts.endsWith("Z") && !ts.includes("+")) ts += "Z";
         const timestamp = new Date(ts);
@@ -88,9 +86,11 @@ async function loadPotholes() {
     }
 }
 
-document.getElementById("apply-filters").addEventListener("click", applyFilters);
-document.getElementById("reset-filters").addEventListener("click", resetFilters);
-document.getElementById("refresh").addEventListener("click", loadPotholes);
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("apply-filters").addEventListener("click", applyFilters);
+    document.getElementById("reset-filters").addEventListener("click", resetFilters);
+    document.getElementById("refresh").addEventListener("click", loadPotholes);
 
-loadPotholes();
-setInterval(loadPotholes, 30000);
+    loadPotholes();
+    setInterval(loadPotholes, 30000);
+});
