@@ -3,7 +3,6 @@ import time
 import requests
 import numpy as np
 from picamera2 import Picamera2
-from picamera2.encoders import H264Encoder
 from datetime import datetime, timezone
 from detection.detector import PotholeDetector
 from detection.gps_parser import GPSParser
@@ -28,6 +27,7 @@ class RealtimePipeline:
         self.frame_skip = settings.frame_skip
         self.save_video = save_video
         self._running = False
+        self._last_detections = []
         logger.info("Realtime pipeline initialized")
 
     def post_pothole(self, lat: float, lon: float, confidence: float):
@@ -89,19 +89,19 @@ class RealtimePipeline:
 
         picam2 = Picamera2()
         config = picam2.create_preview_configuration(
-            main={"size": (1280, 720), "format": "RGB888"}
+            main={"size": (1280, 720), "format": "BGR888"}
         )
         picam2.configure(config)
         picam2.start()
         time.sleep(2)
 
-        # Set up video writer
         video_writer = None
+        video_path = None
         if self.save_video:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             video_path = f"/home/pi/drive_{timestamp}.mp4"
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            video_writer = cv2.VideoWriter(video_path, fourcc, 10, (1280, 720))
+            video_writer = cv2.VideoWriter(video_path, fourcc, 30, (1280, 720))
             logger.info(f"Recording video to {video_path}")
 
         logger.info("Camera started — detecting potholes...")
@@ -113,24 +113,24 @@ class RealtimePipeline:
             while self._running:
                 frame = picam2.capture_array()
 
-                detections = []
+                # Run detection every Nth frame
                 if frame_count % self.frame_skip == 0:
-                    detections = self.detector.detect(frame)
+                    self._last_detections = self.detector.detect(frame)
 
-                    if detections:
+                    if self._last_detections:
                         lat, lon = self.gps.get_coordinates()
                         if lat and lon:
-                            for detection in detections:
+                            for detection in self._last_detections:
                                 self.post_pothole(lat, lon, detection["confidence"])
                                 total_detections += 1
                         else:
                             logger.warning("Pothole detected but no GPS fix yet")
 
-                # Draw boxes on frame and save to video
+                # Write every frame to video for smooth playback
+                # Draw last known detections on every frame
                 if video_writer:
-                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    annotated_bgr = self.draw_detections(frame_bgr, detections)
-                    video_writer.write(annotated_bgr)
+                    annotated = self.draw_detections(frame.copy(), self._last_detections)
+                    video_writer.write(annotated)
 
                 frame_count += 1
 
