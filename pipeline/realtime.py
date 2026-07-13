@@ -2,6 +2,7 @@ import cv2
 import time
 import requests
 import numpy as np
+import threading
 from picamera2 import Picamera2
 from datetime import datetime, timezone
 from detection.detector import PotholeDetector
@@ -28,6 +29,9 @@ class RealtimePipeline:
         self.save_video = save_video
         self._running = False
         self._last_detections = []
+        self._detection_lock = threading.Lock()
+        self._inference_frame = None
+        self._inference_lock = threading.Lock()
         logger.info("Realtime pipeline initialized")
 
     def post_pothole(self, lat: float, lon: float, confidence: float):
@@ -46,19 +50,15 @@ class RealtimePipeline:
                 logger.info(f"Logged pothole at ({lat:.6f}, {lon:.6f}) confidence={confidence}")
             else:
                 logger.error(f"Failed to log pothole: {response.status_code}")
-        except requests.exceptions.ConnectionError:
-            logger.error("Could not connect to API — check hotspot connection")
-        except requests.exceptions.Timeout:
-            logger.error("API request timed out")
+        except Exception as e:
+            logger.error(f"API error: {e}")
 
     def draw_detections(self, frame: np.ndarray, detections: list) -> np.ndarray:
         for detection in detections:
             bbox = detection["bbox"]
             confidence = detection["confidence"]
             x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-
             label = f"Pothole {confidence:.0%}"
             cv2.putText(
                 frame, label,
@@ -67,6 +67,29 @@ class RealtimePipeline:
                 0.6, (0, 0, 255), 2
             )
         return frame
+
+    def _inference_worker(self):
+        while self._running:
+            frame = None
+            with self._inference_lock:
+                if self._inference_frame is not None:
+                    frame = self._inference_frame.copy()
+                    self._inference_frame = None
+
+            if frame is not None:
+                detections = self.detector.detect(frame)
+                with self._detection_lock:
+                    self._last_detections = detections
+
+                if detections:
+                    lat, lon = self.gps.get_coordinates()
+                    if lat and lon:
+                        for detection in detections:
+                            self.post_pothole(lat, lon, detection["confidence"])
+                    else:
+                        logger.warning("Pothole detected but no GPS fix yet")
+            else:
+                time.sleep(0.01)
 
     def run(self):
         logger.info("Starting realtime pipeline — press Ctrl+C to stop")
@@ -104,32 +127,25 @@ class RealtimePipeline:
             video_writer = cv2.VideoWriter(video_path, fourcc, 30, (1280, 720))
             logger.info(f"Recording video to {video_path}")
 
-        logger.info("Camera started — detecting potholes...")
         self._running = True
+        inference_thread = threading.Thread(target=self._inference_worker, daemon=True)
+        inference_thread.start()
+
+        logger.info("Camera started — detecting potholes...")
         frame_count = 0
-        total_detections = 0
 
         try:
             while self._running:
                 frame = picam2.capture_array()
 
-                # Run detection every Nth frame
                 if frame_count % self.frame_skip == 0:
-                    self._last_detections = self.detector.detect(frame)
+                    with self._inference_lock:
+                        self._inference_frame = frame.copy()
 
-                    if self._last_detections:
-                        lat, lon = self.gps.get_coordinates()
-                        if lat and lon:
-                            for detection in self._last_detections:
-                                self.post_pothole(lat, lon, detection["confidence"])
-                                total_detections += 1
-                        else:
-                            logger.warning("Pothole detected but no GPS fix yet")
-
-                # Write every frame to video for smooth playback
-                # Draw last known detections on every frame
                 if video_writer:
-                    annotated = self.draw_detections(frame.copy(), self._last_detections)
+                    with self._detection_lock:
+                        current_detections = self._last_detections.copy()
+                    annotated = self.draw_detections(frame.copy(), current_detections)
                     video_writer.write(annotated)
 
                 frame_count += 1
@@ -137,12 +153,13 @@ class RealtimePipeline:
         except KeyboardInterrupt:
             logger.info("Pipeline stopped by user")
         finally:
+            self._running = False
             picam2.stop()
             self.gps.stop()
             if video_writer:
                 video_writer.release()
                 logger.info(f"Video saved to {video_path}")
-            logger.info(f"Pipeline complete — {total_detections} potholes detected")
+            logger.info(f"Pipeline complete — {len(self._last_detections)} final detections")
 
 
 if __name__ == "__main__":
