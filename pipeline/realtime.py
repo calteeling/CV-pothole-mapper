@@ -58,13 +58,13 @@ class RealtimePipeline:
             bbox = detection["bbox"]
             confidence = detection["confidence"]
             x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             label = f"Pothole {confidence:.0%}"
             cv2.putText(
                 frame, label,
                 (x1, y1 - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6, (0, 0, 255), 2
+                0.6, (0, 255, 0), 2
             )
         return frame
 
@@ -77,6 +77,7 @@ class RealtimePipeline:
                     self._inference_frame = None
 
             if frame is not None:
+                # YOLO expects RGB — frame is already RGB from picamera2
                 detections = self.detector.detect(frame)
                 with self._detection_lock:
                     self._last_detections = detections
@@ -110,13 +111,24 @@ class RealtimePipeline:
             lat, lon = self.gps.get_coordinates()
             logger.info(f"GPS fix acquired: ({lat:.6f}, {lon:.6f})")
 
+        # Use RGB888 so YOLO gets correct colors
         picam2 = Picamera2()
         config = picam2.create_preview_configuration(
-            main={"size": (1280, 720), "format": "BGR888"}
+            main={"size": (1280, 720), "format": "RGB888"}
         )
         picam2.configure(config)
         picam2.start()
         time.sleep(2)
+
+        # Measure actual FPS
+        logger.info("Measuring camera FPS...")
+        fps_frames = []
+        for _ in range(30):
+            t = time.time()
+            picam2.capture_array()
+            fps_frames.append(time.time() - t)
+        actual_fps = 1.0 / (sum(fps_frames) / len(fps_frames))
+        logger.info(f"Camera FPS: {actual_fps:.1f}")
 
         video_writer = None
         video_path = None
@@ -124,8 +136,9 @@ class RealtimePipeline:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             video_path = f"/home/pi/drive_{timestamp}.mp4"
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            video_writer = cv2.VideoWriter(video_path, fourcc, 30, (1280, 720))
-            logger.info(f"Recording video to {video_path}")
+            # Use actual FPS so video plays at correct speed
+            video_writer = cv2.VideoWriter(video_path, fourcc, actual_fps, (1280, 720))
+            logger.info(f"Recording video at {actual_fps:.1f}fps to {video_path}")
 
         self._running = True
         inference_thread = threading.Thread(target=self._inference_worker, daemon=True)
@@ -136,6 +149,7 @@ class RealtimePipeline:
 
         try:
             while self._running:
+                # RGB frame from picamera2
                 frame = picam2.capture_array()
 
                 if frame_count % self.frame_skip == 0:
@@ -145,7 +159,10 @@ class RealtimePipeline:
                 if video_writer:
                     with self._detection_lock:
                         current_detections = self._last_detections.copy()
-                    annotated = self.draw_detections(frame.copy(), current_detections)
+
+                    # Convert RGB to BGR for OpenCV video writer
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    annotated = self.draw_detections(frame_bgr, current_detections)
                     video_writer.write(annotated)
 
                 frame_count += 1
