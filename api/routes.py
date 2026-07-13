@@ -5,6 +5,7 @@ from api.schemas import PotholeCreate, PotholeResponse
 from api.config import get_settings
 from api.logger import get_logger
 from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter()
 settings = get_settings()
@@ -39,3 +40,13 @@ def clear_potholes(db: Session = Depends(get_db)):
     db.commit()
     logger.info("Cleared all potholes")
     return {"message": "All potholes cleared"}
+
+@router.delete("/potholes/{pothole_id}")
+def delete_pothole(pothole_id: int, db: Session = Depends(get_db)):
+    pothole = db.query(Pothole).filter(Pothole.id == pothole_id).first()
+    if not pothole:
+        raise HTTPException(status_code=404, detail="Pothole not found")
+    db.delete(pothole)
+    db.commit()
+    logger.info(f"Deleted pothole {pothole_id}")
+    return {"message": f"Deleted pothole {pothole_id}"}
