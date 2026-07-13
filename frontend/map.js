@@ -28,7 +28,7 @@ async function loadPotholes() {
                 Confidence: ${(pothole.confidence * 100).toFixed(1)}%<br>
                 Lat: ${pothole.latitude.toFixed(6)}<br>
                 Lng: ${pothole.longitude.toFixed(6)}<br>
-                Time: ${new Date(pothole.timestamp).toLocaleString()}
+                Time: ${new Date(pothole.timestamp + 'Z').toLocaleString('en-US', {timeZone: 'America/New_York'})}
             `);
 
             markers.push(marker);
