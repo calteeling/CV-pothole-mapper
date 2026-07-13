@@ -128,8 +128,8 @@ class RealtimePipeline:
 
                 # Draw boxes on frame and save to video
                 if video_writer:
-                    annotated = self.draw_detections(frame.copy(), detections)
-                    annotated_bgr = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    annotated_bgr = self.draw_detections(frame_bgr, detections)
                     video_writer.write(annotated_bgr)
 
                 frame_count += 1
