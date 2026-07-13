@@ -17,12 +17,15 @@ A real-time computer vision system that detects road potholes from a live camera
 ## Screenshots
 
 **Interactive map showing all detected potholes across Charlotte, color-coded by confidence level**
+
 ![Full Map](assets/screenshot_full.png)
 
 **Filtered view showing only low confidence detections from the past 7 days**
+
 ![Filtered View](assets/screenshot_filtered.png)
 
 **Pothole detail popup showing confidence score, coordinates, and timestamp**
+
 ![Pothole Popup](assets/screenshot_popup.png)
 
 ---
