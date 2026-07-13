@@ -222,3 +222,4 @@ models/
 data/
 .DS_Store
 *.log
+potholes.db
