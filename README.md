@@ -17,15 +17,12 @@ A real-time computer vision system that detects road potholes from a live camera
 ## Screenshots
 
 **Interactive map showing all detected potholes across Charlotte, color-coded by confidence level**
-
 ![Full Map](assets/screenshot_full.png)
 
 **Filtered view showing only low confidence detections from the past 7 days**
-
 ![Filtered View](assets/screenshot_filtered.png)
 
 **Pothole detail popup showing confidence score, coordinates, and timestamp**
-
 ![Pothole Popup](assets/screenshot_popup.png)
 
 ---
@@ -37,6 +34,43 @@ A real-time computer vision system that detects road potholes from a live camera
 3. When a pothole is detected above the confidence threshold, the Pi immediately POSTs the GPS coordinate and confidence score to a **FastAPI** backend over a phone hotspot
 4. The backend logs the detection to a **PostgreSQL** database hosted on **Supabase**
 5. A **Leaflet.js** map auto-refreshes every 30 seconds and supports real-time filtering by confidence level and time range
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Vehicle
+        CAM[Pi Camera Module 3]
+        GPS[VK-162 GPS Dongle]
+        PI[Raspberry Pi 5]
+        CAM -->|frames| PI
+        GPS -->|coordinates 5Hz| PI
+    end
+
+    subgraph Detection
+        YOLO[YOLOv8 nano]
+        PI -->|frame + GPS| YOLO
+    end
+
+    subgraph Cloud
+        API[FastAPI on Render]
+        DB[(PostgreSQL on Supabase)]
+        YOLO -->|pothole + coordinates| API
+        API -->|store detection| DB
+    end
+
+    subgraph Frontend
+        MAP[Leaflet.js Map]
+        DB -->|GeoJSON| MAP
+    end
+
+    style Vehicle fill:#1a1a2e,color:#fff
+    style Detection fill:#2a2a4e,color:#fff
+    style Cloud fill:#1a3a2e,color:#fff
+    style Frontend fill:#3a1a2e,color:#fff
+```
 
 ---
 

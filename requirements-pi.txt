@@ -1,0 +1,20 @@
+# Install these in order on Raspberry Pi
+# Step 1 - CPU-only PyTorch for ARM
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Step 2 - Ultralytics without GPU dependencies
+# pip install ultralytics --no-deps
+
+# Step 3 - Core dependencies
+fastapi==0.139.0
+uvicorn==0.50.2
+sqlalchemy==2.0.51
+python-dotenv==1.2.2
+pynmea2
+pyserial
+requests
+pydantic-settings
+aiofiles
+huggingface_hub
+psycopg2-binary
+picamera2
