@@ -3,6 +3,7 @@ import time
 import requests
 import numpy as np
 import threading
+import signal
 from picamera2 import Picamera2
 from datetime import datetime, timezone
 from detection.detector import PotholeDetector
@@ -32,7 +33,13 @@ class RealtimePipeline:
         self._detection_lock = threading.Lock()
         self._inference_frame = None
         self._inference_lock = threading.Lock()
+        self._video_writer = None
+        self._video_path = None
         logger.info("Realtime pipeline initialized")
+
+    def _signal_handler(self, signum, frame):
+        logger.info("Signal received — stopping pipeline cleanly")
+        self._running = False
 
     def post_pothole(self, lat: float, lon: float, confidence: float):
         try:
@@ -77,7 +84,6 @@ class RealtimePipeline:
                     self._inference_frame = None
 
             if frame is not None:
-                # YOLO expects RGB — frame is already RGB from picamera2
                 detections = self.detector.detect(frame)
                 with self._detection_lock:
                     self._last_detections = detections
@@ -93,6 +99,9 @@ class RealtimePipeline:
                 time.sleep(0.01)
 
     def run(self):
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+
         logger.info("Starting realtime pipeline — press Ctrl+C to stop")
 
         self.gps.start()
@@ -111,7 +120,6 @@ class RealtimePipeline:
             lat, lon = self.gps.get_coordinates()
             logger.info(f"GPS fix acquired: ({lat:.6f}, {lon:.6f})")
 
-        # Use RGB888 so YOLO gets correct colors
         picam2 = Picamera2()
         config = picam2.create_preview_configuration(
             main={"size": (1280, 720), "format": "RGB888"}
@@ -120,7 +128,6 @@ class RealtimePipeline:
         picam2.start()
         time.sleep(2)
 
-        # Measure actual FPS
         logger.info("Measuring camera FPS...")
         fps_frames = []
         for _ in range(30):
@@ -130,15 +137,14 @@ class RealtimePipeline:
         actual_fps = 1.0 / (sum(fps_frames) / len(fps_frames))
         logger.info(f"Camera FPS: {actual_fps:.1f}")
 
-        video_writer = None
-        video_path = None
         if self.save_video:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            video_path = f"/home/pi/drive_{timestamp}.mp4"
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            # Use actual FPS so video plays at correct speed
-            video_writer = cv2.VideoWriter(video_path, fourcc, actual_fps, (1280, 720))
-            logger.info(f"Recording video at {actual_fps:.1f}fps to {video_path}")
+            self._video_path = f"/home/pi/drive_{timestamp}.avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            self._video_writer = cv2.VideoWriter(
+                self._video_path, fourcc, actual_fps, (1280, 720)
+            )
+            logger.info(f"Recording video at {actual_fps:.1f}fps to {self._video_path}")
 
         self._running = True
         inference_thread = threading.Thread(target=self._inference_worker, daemon=True)
@@ -149,33 +155,30 @@ class RealtimePipeline:
 
         try:
             while self._running:
-                # RGB frame from picamera2
                 frame = picam2.capture_array()
 
                 if frame_count % self.frame_skip == 0:
                     with self._inference_lock:
                         self._inference_frame = frame.copy()
 
-                if video_writer:
+                if self._video_writer:
                     with self._detection_lock:
                         current_detections = self._last_detections.copy()
-
-                    # Convert RGB to BGR for OpenCV video writer
                     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                     annotated = self.draw_detections(frame_bgr, current_detections)
-                    video_writer.write(annotated)
+                    self._video_writer.write(annotated)
 
                 frame_count += 1
 
-        except KeyboardInterrupt:
-            logger.info("Pipeline stopped by user")
+        except Exception as e:
+            logger.error(f"Pipeline error: {e}")
         finally:
             self._running = False
             picam2.stop()
             self.gps.stop()
-            if video_writer:
-                video_writer.release()
-                logger.info(f"Video saved to {video_path}")
+            if self._video_writer:
+                self._video_writer.release()
+                logger.info(f"Video saved to {self._video_path}")
             logger.info(f"Pipeline complete — {len(self._last_detections)} final detections")
 
 
