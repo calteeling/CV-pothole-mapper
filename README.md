@@ -11,7 +11,7 @@ A real-time computer vision system that detects road potholes from a live camera
 
 ## Demo
 
-![Demo](assets/demo.gif)
+<img src="assets/demo.gif" width="800"/>
 
 ---
 
