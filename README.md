@@ -13,6 +13,8 @@ A real-time computer vision system that detects road potholes from a live camera
 
 <img src="assets/demo.gif" width="800"/>
 
+*Real-time pothole detection running on a Raspberry Pi 5 mounted in a vehicle. The camera feed shows a YOLOv8 model detecting a road pothole with a confidence score, while the GPS module simultaneously logs the exact coordinates and posts the detection to the live map.*
+
 ---
 
 ## Screenshots
